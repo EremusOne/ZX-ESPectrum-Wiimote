@@ -208,9 +208,11 @@ void Ports::output(uint8_t portLow, uint8_t portHigh, uint8_t data) {
         
         #ifdef SPEAKER_PRESENT
         if (Tape::SaveStatus==TAPE_SAVING) {
-            digitalWrite(SPEAKER_PIN, bitRead(data, 3)); // re-route tape out data to speaker
+            // digitalWrite(SPEAKER_PIN, bitRead(data, 3)); // re-route tape out data to speaker
+            ESPectrum::beeperBit = bitRead(data, 3);
         } else {
-            digitalWrite(SPEAKER_PIN, bitRead(data, 4)); // speaker
+            // digitalWrite(SPEAKER_PIN, bitRead(data, 4)); // speaker
+            ESPectrum::beeperBit = bitRead(data, 4);
         }
         #endif
 

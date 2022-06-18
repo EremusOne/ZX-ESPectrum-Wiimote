@@ -67,6 +67,12 @@ void setup_cpuspeed();
 // ESPectrum graphics variables
 VGA ESPectrum::vga;
 byte ESPectrum::borderColor = 7;
+byte ESPectrum::beeperBit = 0;
+
+static QueueHandle_t vidQueue;
+static TaskHandle_t audioTaskHandle;
+static volatile bool audioTaskIsRunning = false;    // volatile keyword REQUIRED!!!
+static uint16_t *param;
 
 bool isLittleEndian()
 {
@@ -229,6 +235,9 @@ void ESPectrum::setup()
     }
 
     Serial.printf("%s %u\n", MSG_EXEC_ON_CORE, xPortGetCoreID());
+
+    vidQueue = xQueueCreate(1, sizeof(uint16_t *));
+    xTaskCreatePinnedToCore(&ESPectrum::audioTask, "audioTask", 1024 * 4, NULL, 5, &audioTaskHandle, 0);
 
     AySound::initialize();
 
@@ -445,5 +454,119 @@ void ESPectrum::loop() {
 #endif
 
     AySound::update();
-
 }
+
+#define AUDIO_PER_SAMPLE_TIMING
+#ifdef AUDIO_PER_SAMPLE_TIMING
+
+static uint32_t ts_start;
+static uint32_t target_frame_micros;
+static uint32_t target_frame_cycles;
+
+static inline void begin_timing(uint32_t _target_frame_cycles, uint32_t _target_frame_micros)
+{
+    target_frame_micros = _target_frame_micros;
+    target_frame_cycles = _target_frame_cycles;
+    ts_start = micros();
+}
+
+static inline void delay_instruction(uint32_t elapsed_cycles)
+{
+    uint32_t ts_current = micros() - ts_start;
+    uint32_t ts_target = target_frame_micros * elapsed_cycles / target_frame_cycles;
+    if (ts_target > ts_current) {
+        uint32_t us_to_wait = ts_target - ts_current;
+        if (us_to_wait < target_frame_micros) {
+            uint32_t m = micros();
+            uint32_t e = (m + us_to_wait);
+            if(m > e){ //overflow
+                while(micros() > e){
+                    NOP();
+                }
+            }
+            while(micros() < e){
+                NOP();
+            }
+        }
+    }
+}
+
+#endif  // AUDIO_PER_SAMPLE_TIMING
+
+extern uint8_t* audiobuf_consume;
+
+void ESPectrum::audioTask(void *unused) {
+    audioTaskIsRunning = true;
+    uint16_t *param;
+
+    #ifdef AUDIO_PER_SAMPLE_TIMING
+        uint32_t prevTstates = 0;
+        uint32_t partTstates = 0;
+        #define PIT_PERIOD 50
+        begin_timing(2184, CPU::microsPerFrame());
+    #endif
+    
+    while (1)
+    {
+        xQueueReceive(vidQueue, &param, portMAX_DELAY);
+
+#ifdef LOG_DEBUG_TIMING
+    uint32_t ts_start = micros();
+#endif
+
+
+
+        for (uint32_t sampleidx = 0; sampleidx < 2184; sampleidx++)
+        {
+            digitalWrite(SPEAKER_PIN, audiobuf_consume[sampleidx]);
+            delay_instruction(sampleidx+1);
+        }
+
+
+
+
+
+#ifdef LOG_DEBUG_TIMING
+        uint32_t ts_end = micros();
+
+        uint32_t elapsed = ts_end - ts_start;
+        uint32_t target = CPU::microsPerFrame();
+        uint32_t idle = target - elapsed;
+#endif
+
+#ifdef LOG_DEBUG_TIMING
+        static int ctr = 0;
+        if (ctr == 0) {
+            ctr = 160;
+            Serial.printf("[AudioTask] elapsed: %u; idle: %u\n", elapsed, idle);
+
+            for (int j = 0; j < 20; j++) {
+                for (int i = 0; i < 20; i++) {
+                    int idx = 20 * j + i;
+                    Serial.printf("%d ", audiobuf_consume[idx]);
+                }
+                Serial.printf("\n");
+            }
+        }
+        else ctr--;
+#endif
+        audioTaskIsRunning = false;
+    }
+    audioTaskIsRunning = false;
+    vTaskDelete(NULL);
+
+    while (1) {
+    }
+}
+
+void ESPectrum::syncAudioTask() {
+    xQueueSend(vidQueue, &param, portMAX_DELAY);
+}
+
+void ESPectrum::waitForAudioTask() {
+    xQueueSend(vidQueue, &param, portMAX_DELAY);
+    // Wait while ULA loop is finishing
+    delay(45);
+}
+
+

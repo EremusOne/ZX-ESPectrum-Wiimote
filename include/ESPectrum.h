@@ -69,8 +69,15 @@ public:
 
     static VGA vga;
     static uint8_t borderColor;
+    static uint8_t beeperBit;
     static void processKeyboard();
-   
+
+    static void syncAudioTask();
+    static void waitForAudioTask();
+
+private:
+    static void audioTask(void* unused);
+  
 };
 
 #endif

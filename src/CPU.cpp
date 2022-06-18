@@ -49,6 +49,13 @@ static bool createCalled = false;
 static bool interruptPending = false;
 
 ///////////////////////////////////////////////////////////////////////////////
+//  AUDIO EMULATION DECLARATIONS
+///////////////////////////////////////////////////////////////////////////////
+
+static void audiobuf_init();
+static void audiobuf_update(uint32_t pre_tstates, uint32_t tstates);
+
+///////////////////////////////////////////////////////////////////////////////
 
 #ifdef CPU_PER_INSTRUCTION_TIMING
 
@@ -151,6 +158,9 @@ void CPU::loop()
     
     tstates = 0;
 
+    audiobuf_init();
+    ESPectrum::syncAudioTask();
+
 	while (tstates < statesInFrame)
 	{
     
@@ -189,28 +199,30 @@ void CPU::loop()
         
             Z80::execute();
 
+            audiobuf_update(pre_tstates, tstates);
+
             // increase global Tstates
             global_tstates += (tstates - pre_tstates);
 
-        #ifdef CPU_PER_INSTRUCTION_TIMING
-            if (partTstates > PIT_PERIOD) {
-                delay_instruction(tstates);
-                partTstates -= PIT_PERIOD;
-            } 
-            else {
-                partTstates += (tstates - prevTstates);
-            }
-            prevTstates = tstates;
-        #endif
+        // #ifdef CPU_PER_INSTRUCTION_TIMING
+        //     if (partTstates > PIT_PERIOD) {
+        //         delay_instruction(tstates);
+        //         partTstates -= PIT_PERIOD;
+        //     } 
+        //     else {
+        //         partTstates += (tstates - prevTstates);
+        //     }
+        //     prevTstates = tstates;
+        // #endif
 	}
     
     #if (defined(LOG_DEBUG_TIMING) && defined(SHOW_FPS))
     framecnt++;
     #endif
     
-    #ifdef CPU_PER_INSTRUCTION_TIMING
-        delay_instruction(tstates);
-    #endif
+    // #ifdef CPU_PER_INSTRUCTION_TIMING
+    // delay_instruction(tstates);
+    // #endif
 
     interruptPending = true;
 
@@ -220,6 +232,44 @@ void CPU::loop()
     halfsec = !(sp_int_ctr % 25);
 
 }
+
+///////////////////////////////////////////////////////////////////////////////
+//  AUDIO EMULATION
+///////////////////////////////////////////////////////////////////////////////
+
+static uint8_t audiobufA[2184+10];
+static uint8_t audiobufB[2184+10];
+static uint8_t* audiobuf_ptr;
+
+uint8_t* audiobuf_produce = audiobufA;
+uint8_t* audiobuf_consume = audiobufB;
+
+static void audiobuf_init()
+{
+    if (audiobuf_produce == audiobufA) {
+        audiobuf_produce = audiobufB;
+        audiobuf_consume = audiobufA;
+    }
+    else {
+        audiobuf_produce = audiobufA;
+        audiobuf_consume = audiobufB;
+    }
+}
+
+static void audiobuf_update(uint32_t pre_tstates, uint32_t tstates)
+{
+    uint32_t beginSample = pre_tstates >> 5;
+    uint32_t endSample = tstates >> 5;
+
+    for (uint32_t i = beginSample; i < endSample; i++) {
+        audiobuf_produce[i] = ESPectrum::beeperBit;
+    }
+    
+}
+
+
+
+
 
 ///////////////////////////////////////////////////////////////////////////////
 //
