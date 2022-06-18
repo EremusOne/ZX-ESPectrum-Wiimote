@@ -454,26 +454,30 @@ void ESPectrum::loop() {
 #endif
 
     AySound::update();
+
+    // DO NOT REMOVE - for avoiding task watchdog timeouts
+    vTaskDelay(0);
 }
 
 #define AUDIO_PER_SAMPLE_TIMING
 #ifdef AUDIO_PER_SAMPLE_TIMING
 
-static uint32_t ts_start;
-static uint32_t target_frame_micros;
-static uint32_t target_frame_cycles;
 
-static inline void begin_timing(uint32_t _target_frame_cycles, uint32_t _target_frame_micros)
+static uint32_t audio_ts_start;
+static uint32_t target_frame_micros;
+static uint32_t target_frame_samples;
+
+static inline void begin_timing(uint32_t _target_frame_samples, uint32_t _target_frame_micros)
 {
     target_frame_micros = _target_frame_micros;
-    target_frame_cycles = _target_frame_cycles;
-    ts_start = micros();
+    target_frame_samples = _target_frame_samples;
+    audio_ts_start = micros();
 }
 
-static inline void delay_instruction(uint32_t elapsed_cycles)
+static inline void delay_sample(uint32_t elapsed_samples)
 {
-    uint32_t ts_current = micros() - ts_start;
-    uint32_t ts_target = target_frame_micros * elapsed_cycles / target_frame_cycles;
+    uint32_t ts_current = micros() - audio_ts_start;
+    uint32_t ts_target = target_frame_micros * elapsed_samples / target_frame_samples;
     if (ts_target > ts_current) {
         uint32_t us_to_wait = ts_target - ts_current;
         if (us_to_wait < target_frame_micros) {
@@ -495,17 +499,12 @@ static inline void delay_instruction(uint32_t elapsed_cycles)
 
 extern uint8_t* audiobuf_consume;
 
+#include "esp_task_wdt.h"
+
 void ESPectrum::audioTask(void *unused) {
     audioTaskIsRunning = true;
     uint16_t *param;
 
-    #ifdef AUDIO_PER_SAMPLE_TIMING
-        uint32_t prevTstates = 0;
-        uint32_t partTstates = 0;
-        #define PIT_PERIOD 50
-        begin_timing(2184, CPU::microsPerFrame());
-    #endif
-    
     while (1)
     {
         xQueueReceive(vidQueue, &param, portMAX_DELAY);
@@ -514,12 +513,16 @@ void ESPectrum::audioTask(void *unused) {
     uint32_t ts_start = micros();
 #endif
 
+    #ifdef AUDIO_PER_SAMPLE_TIMING
+        begin_timing(2184, CPU::microsPerFrame());
+    #endif
+    
 
 
         for (uint32_t sampleidx = 0; sampleidx < 2184; sampleidx++)
         {
             digitalWrite(SPEAKER_PIN, audiobuf_consume[sampleidx]);
-            delay_instruction(sampleidx+1);
+            delay_sample(sampleidx+1);
         }
 
 
@@ -539,24 +542,25 @@ void ESPectrum::audioTask(void *unused) {
         if (ctr == 0) {
             ctr = 160;
             Serial.printf("[AudioTask] elapsed: %u; idle: %u\n", elapsed, idle);
-
-            for (int j = 0; j < 20; j++) {
-                for (int i = 0; i < 20; i++) {
-                    int idx = 20 * j + i;
-                    Serial.printf("%d ", audiobuf_consume[idx]);
-                }
-                Serial.printf("\n");
-            }
+            // for (int j = 0; j < 20; j++) {
+            //     for (int i = 0; i < 20; i++) {
+            //         int idx = 20 * j + i;
+            //         Serial.printf("%d ", audiobuf_consume[idx]);
+            //     }
+            //     Serial.printf("\n");
+            // }
         }
         else ctr--;
 #endif
+
         audioTaskIsRunning = false;
+
+        // DO NOT REMOVE - for avoiding task watchdog timeouts
+        vTaskDelay(0);
     }
     audioTaskIsRunning = false;
     vTaskDelete(NULL);
 
-    while (1) {
-    }
 }
 
 void ESPectrum::syncAudioTask() {

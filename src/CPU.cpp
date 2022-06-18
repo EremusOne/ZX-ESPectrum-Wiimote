@@ -57,23 +57,25 @@ static void audiobuf_update(uint32_t pre_tstates, uint32_t tstates);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifdef CPU_PER_INSTRUCTION_TIMING
-
 static uint32_t ts_start;
 static uint32_t target_frame_micros;
 static uint32_t target_frame_cycles;
 
-static inline void begin_timing(uint32_t _target_frame_cycles, uint32_t _target_frame_micros)
+static inline void setup_frame_timing(uint32_t _target_frame_cycles, uint32_t _target_frame_micros)
 {
     target_frame_micros = _target_frame_micros;
     target_frame_cycles = _target_frame_cycles;
+}
+
+static inline void begin_frame_timing()
+{
     ts_start = micros();
 }
 
-static inline void delay_instruction(uint32_t elapsed_cycles)
+static inline void wait_to_frame_end()
 {
     uint32_t ts_current = micros() - ts_start;
-    uint32_t ts_target = target_frame_micros * elapsed_cycles / target_frame_cycles;
+    uint32_t ts_target = target_frame_micros;
     if (ts_target > ts_current) {
         uint32_t us_to_wait = ts_target - ts_current;
         if (us_to_wait < target_frame_micros) {
@@ -90,8 +92,6 @@ static inline void delay_instruction(uint32_t elapsed_cycles)
         }
     }
 }
-
-#endif  // CPU_PER_INSTRUCTION_TIMING
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -140,6 +140,7 @@ void CPU::reset() {
     Z80::reset();
     global_tstates = 0;
 
+    setup_frame_timing(statesPerFrame(), microsPerFrame());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -149,12 +150,7 @@ void CPU::loop()
     uint32_t statesInFrame = statesPerFrame();
     tstates = 0;
 
-    #ifdef CPU_PER_INSTRUCTION_TIMING
-        uint32_t prevTstates = 0;
-        uint32_t partTstates = 0;
-        #define PIT_PERIOD 50
-        begin_timing(statesInFrame, microsPerFrame());
-    #endif
+    begin_frame_timing();
     
     tstates = 0;
 
@@ -204,25 +200,14 @@ void CPU::loop()
             // increase global Tstates
             global_tstates += (tstates - pre_tstates);
 
-        // #ifdef CPU_PER_INSTRUCTION_TIMING
-        //     if (partTstates > PIT_PERIOD) {
-        //         delay_instruction(tstates);
-        //         partTstates -= PIT_PERIOD;
-        //     } 
-        //     else {
-        //         partTstates += (tstates - prevTstates);
-        //     }
-        //     prevTstates = tstates;
-        // #endif
 	}
     
     #if (defined(LOG_DEBUG_TIMING) && defined(SHOW_FPS))
     framecnt++;
     #endif
-    
-    // #ifdef CPU_PER_INSTRUCTION_TIMING
-    // delay_instruction(tstates);
-    // #endif
+
+    // wait until all frame time has elapsed    
+    wait_to_frame_end();
 
     interruptPending = true;
 
@@ -230,7 +215,6 @@ void CPU::loop()
     if (halfsec) flashing ^= 0b10000000;
     sp_int_ctr++;
     halfsec = !(sp_int_ctr % 25);
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -266,10 +250,6 @@ static void audiobuf_update(uint32_t pre_tstates, uint32_t tstates)
     }
     
 }
-
-
-
-
 
 ///////////////////////////////////////////////////////////////////////////////
 //
