@@ -75,6 +75,11 @@ public:
     static void syncAudioTask();
     static void waitForAudioTask();
 
+    // audio task buffers
+    static void audiobuf_init();
+    static void audiobuf_swap();
+    static void audiobuf_update(uint32_t pre_tstates, uint32_t tstates);
+
 private:
     static void audioTask(void* unused);
   

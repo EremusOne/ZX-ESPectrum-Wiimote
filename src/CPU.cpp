@@ -221,8 +221,8 @@ void CPU::loop()
 //  AUDIO EMULATION
 ///////////////////////////////////////////////////////////////////////////////
 
-static uint8_t audiobufA[2184+10];
-static uint8_t audiobufB[2184+10];
+static uint8_t audiobufA[AUDIOBUF_SIZE];
+static uint8_t audiobufB[AUDIOBUF_SIZE];
 static uint8_t* audiobuf_ptr;
 
 uint8_t* audiobuf_produce = audiobufA;
@@ -242,13 +242,12 @@ static void audiobuf_init()
 
 static void audiobuf_update(uint32_t pre_tstates, uint32_t tstates)
 {
-    uint32_t beginSample = pre_tstates >> 5;
-    uint32_t endSample = tstates >> 5;
+    uint32_t beginSample = pre_tstates >> AUDIOBUF_ROTR;
+    uint32_t endSample = tstates >> AUDIOBUF_ROTR;
 
-    for (uint32_t i = beginSample; i < endSample; i++) {
+    for (uint32_t i = beginSample; i < endSample && i < AUDIOBUF_SIZE; i++) {
         audiobuf_produce[i] = ESPectrum::beeperBit;
     }
-    
 }
 
 ///////////////////////////////////////////////////////////////////////////////

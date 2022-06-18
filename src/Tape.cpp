@@ -144,7 +144,8 @@ uint8_t Tape::TAP_Read()
     } 
     
 #ifdef SPEAKER_PRESENT
-    digitalWrite(SPEAKER_PIN, tapeEarBit); // Send tape load sound to speaker
+    // digitalWrite(SPEAKER_PIN, tapeEarBit); // Send tape load sound to speaker
+    ESPectrum::beeperBit = tapeEarBit;
 #endif
     
     return tapeEarBit;

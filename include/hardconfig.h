@@ -41,23 +41,6 @@
 #define ESPectrum_hardconfig_h
 
 ///////////////////////////////////////////////////////////////////////////////
-// CPU timing configuration
-
-// #define CPU_PER_INSTRUCTION_TIMING for precise CPU timing, undefine it
-// to let the emulator run free (and too fast :). If #defined,
-// delayMicros() will be called after few instructions so CPU runs almost realtime.
-///////////////////////////////////////////////////////////////////////////////
-
-#define CPU_PER_INSTRUCTION_TIMING
-
-// CPU_PIT_PERIOD controls every how many cycles (approx) delayMicros() is called.
-// The lowest the value, the highest the precision, but there is a small performance
-// penalty when calling delayMicros() which may lead to worse timing in some games.
-// I recommend NOT changing the default value of 50, except for better PWM sound.
-#define CPU_PIT_PERIOD 50
-///////////////////////////////////////////////////////////////////////////////
-
-///////////////////////////////////////////////////////////////////////////////
 // Border effects switch
 //
 // #define BORDEREFFECTS to use a drawing function
@@ -78,13 +61,17 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 // LOG_DEBUG_TIMING generates simple timing log messages to console every second.
-//#define LOG_DEBUG_TIMING
+#define LOG_DEBUG_TIMING
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
 // SHOW_FPS Shows FPS :o) (Needs LOG_DEBUG_TIMING)
-//#define SHOW_FPS
+#define SHOW_FPS
 ///////////////////////////////////////////////////////////////////////////////
+
+// TO BE DOCUMENTED - AUDIO BUFFER PARAMETERS
+#define AUDIOBUF_SIZE 2184
+#define AUDIOBUF_ROTR 5
 
 ///////////////////////////////////////////////////////////////////////////////
 // Video color depth
